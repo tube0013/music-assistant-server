@@ -4,9 +4,10 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
-from music_assistant_models.enums import AlbumType, ProviderFeature
+from music_assistant_models.enums import AlbumType, MediaType, ProviderFeature
 from music_assistant_models.errors import ProviderUnavailableError
 
+from music_assistant.models.music_provider import SYNC_RUN_STATE, SyncRunState
 from music_assistant.providers.livephish import LivePhishProvider
 from music_assistant.providers.livephish.client import LivePhishError
 from tests.providers.livephish.fixtures import RELEASES
@@ -69,3 +70,56 @@ async def test_saved_album_failure_is_not_empty_library(provider: LivePhishProvi
     )
     with pytest.raises(ProviderUnavailableError, match="500"):
         _ = [item async for item in provider.get_library_albums()]
+
+
+def test_catalog_media_types_are_available_for_matching(provider: LivePhishProvider) -> None:
+    """Search-based matching includes tracks and artists without library enumeration."""
+    assert provider.supported_media_types == {
+        MediaType.ARTIST,
+        MediaType.ALBUM,
+        MediaType.TRACK,
+        MediaType.PLAYLIST,
+    }
+    assert ProviderFeature.LIBRARY_TRACKS not in provider.supported_features
+    assert ProviderFeature.LIBRARY_ARTISTS not in provider.supported_features
+
+
+@pytest.mark.parametrize("media_type", [MediaType.ALBUM, MediaType.PLAYLIST])
+@pytest.mark.parametrize("identified", [True, False])
+async def test_bad_library_item_preserves_sync_state_and_continues(
+    provider: LivePhishProvider, media_type: MediaType, identified: bool
+) -> None:
+    """A bad entry protects its old mapping (or all deletions) without hiding later items."""
+    client = cast("MagicMock", provider._client)
+    bad = {"id": "42", "artist": {"name": "Phish"}} if identified else {}
+    if media_type == MediaType.ALBUM:
+        client.favorite_albums.return_value = [
+            bad,
+            {"id": "43", "title": "Good", "artist": {"id": 1, "name": "Phish"}},
+        ]
+    else:
+        client.playlists.return_value = [bad, {"id": "43", "name": "Good"}]
+    listing = (
+        provider.get_library_albums()
+        if media_type == MediaType.ALBUM
+        else provider.get_library_playlists()
+    )
+    state = SyncRunState()
+    token = SYNC_RUN_STATE.set(state)
+    try:
+        assert [item.item_id async for item in listing] == ["43"]
+        assert state.failures == 1
+        if identified:
+            assert state.skipped_item_ids[media_type] == {"42"}
+            assert not state.incomplete_media_types
+        else:
+            assert state.incomplete_media_types == {media_type}
+    finally:
+        SYNC_RUN_STATE.reset(token)
+
+
+async def test_saved_playlist_outage_aborts_listing(provider: LivePhishProvider) -> None:
+    """Transport errors abort sync instead of being treated as missing playlists."""
+    cast("MagicMock", provider._client).playlists.side_effect = LivePhishError("stash: HTTP 500")
+    with pytest.raises(ProviderUnavailableError, match="500"):
+        _ = [item async for item in provider.get_library_playlists()]

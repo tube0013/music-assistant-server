@@ -37,6 +37,9 @@ class LivePhishClient:
         self.username = username
         self.password = password
         self._lossless_available: bool | None = None
+        # Cache raw API responses here so browse, search, and sync share them without
+        # coupling the transport to MA. Account-scoped responses expire in memory;
+        # these bounded caches intentionally do not persist across provider reloads.
         self._stash_lock = asyncio.Lock()
         self._stash_cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._access_token = ""

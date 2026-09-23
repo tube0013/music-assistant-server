@@ -72,6 +72,11 @@ class LivePhishProvider(MusicProvider):
     """Browse the multi-artist LivePhish catalog and play entitled audio through MA."""
 
     @property
+    def supported_media_types(self) -> set[MediaType]:
+        """Return the media types available for browsing, search, and playback."""
+        return {MediaType.ARTIST, MediaType.ALBUM, MediaType.TRACK, MediaType.PLAYLIST}
+
+    @property
     def max_concurrent_streams(self) -> int:
         """Apply LivePhish's single-stream account limit."""
         return 1
@@ -276,7 +281,15 @@ class LivePhishProvider(MusicProvider):
         """Import only the account's saved releases, matching Nugs library behavior."""
         try:
             for item in await self._client.favorite_albums():
-                yield self._parse_album(item)
+                try:
+                    album = self._parse_album(item)
+                except LivePhishError as err:
+                    raw_id = item.get("releaseId") or item.get("id") or item.get("containerID")
+                    self.report_skipped_sync_item(
+                        MediaType.ALBUM, str(raw_id) if raw_id else None, err
+                    )
+                    continue
+                yield album
         except LivePhishError as err:
             raise ProviderUnavailableError(str(err)) from None
 
@@ -284,9 +297,17 @@ class LivePhishProvider(MusicProvider):
         """Import the account's saved playlists without modifying LivePhish."""
         try:
             for item in await self._client.playlists():
-                yield self._parse_playlist(item)
+                try:
+                    playlist = self._parse_playlist(item)
+                except LivePhishError as err:
+                    raw_id = item.get("id")
+                    self.report_skipped_sync_item(
+                        MediaType.PLAYLIST, str(raw_id) if raw_id else None, err
+                    )
+                    continue
+                yield playlist
         except LivePhishError as err:
-            raise MediaNotFoundError(str(err)) from None
+            raise ProviderUnavailableError(str(err)) from None
 
     async def get_playlist(self, prov_playlist_id: str) -> Playlist:
         """Resolve a saved playlist by its LivePhish ID."""
