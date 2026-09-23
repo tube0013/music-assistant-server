@@ -1,0 +1,13 @@
+{
+  "type": "music",
+  "domain": "livephish",
+  "stage": "alpha",
+  "name": "LivePhish",
+  "description": "Browse and play the LivePhish catalog, including Phish and side projects.",
+  "codeowners": [
+    "@tube0013"
+  ],
+  "requirements": [],
+  "multi_instance": false,
+  "documentation": "https://www.music-assistant.io/music-providers/livephish/"
+}

@@ -1,0 +1,39 @@
+{
+  "manifest": {
+    "description": "Browse and play the LivePhish catalog, including Phish and side projects."
+  },
+  "media": {
+    "folder": {
+      "artists": {
+        "name": "Artists"
+      },
+      "recent_releases": {
+        "name": "Latest shows"
+      },
+      "all_releases": {
+        "name": "All shows and albums"
+      },
+      "albums": {
+        "name": "Albums"
+      },
+      "playlists": {
+        "name": "Saved playlists"
+      },
+      "next_page": {
+        "name": "Next page"
+      }
+    }
+  },
+  "config_entries": {
+    "quality": {
+      "label": "Playback quality",
+      "description": "Automatic prefers FLAC when your subscription includes lossless audio, otherwise AAC. FLAC and ALAC require HighQuality access. Applies to newly resolved tracks; restart playback after changing this setting.",
+      "options": {
+        "auto": "Automatic (FLAC when entitled, otherwise AAC)",
+        "flac": "FLAC (lossless)",
+        "alac": "ALAC (lossless)",
+        "aac": "AAC (standard)"
+      }
+    }
+  }
+}
